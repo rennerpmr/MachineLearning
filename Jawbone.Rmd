@@ -1,0 +1,161 @@
+---
+title: "Barbell Lift Classification"
+author: "Phil Renner"
+date: "12/17/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Data 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+## Setup and Reading Data
+
+```{r setup, include=TRUE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(caret)
+library(knitr)
+library(ggplot2)
+library(lattice)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(gbm)
+library(kernlab)
+
+
+
+
+
+#read into data frame 
+validation <- read.csv("pml-testing.csv") 
+training <-  read.csv("pml-training.csv")
+#dim(validation)
+#dim(training)
+
+#clean up data by removing variables with missing data
+
+training<- training[, colSums(is.na(training)) == 0]
+validation <- validation[, colSums(is.na(validation)) == 0]
+#dim(training)
+#dim(validation)
+
+
+#remove first seven variables, as they are descriptive and don't influence classe
+training <- training[,-c(1:7)] 
+
+#remove variables with near zero variance
+nvz <- nearZeroVar(training)
+training <- training[,-nvz]
+#dim(training)
+
+#divide into training and testing set
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=F)
+train <- training[inTrain,]
+testing <- training[-inTrain,]
+
+
+
+```
+
+
+We will try several different prediction approaches. We will use Decision Trees, Random Forest, and SVM. I will use 3-fold cross-validation
+
+Decision Tree Model:
+
+```{r desiciontree, echo=TRUE}
+set.seed(54321)
+control <- trainControl(method="cv", number=3, verboseIter=F)
+
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+#fancyRpartPlot(mod_trees$finalModel)
+
+# Produce confusion matrix for decision tree model
+pred_trees <- predict(mod_trees, testing)
+cmtrees <- confusionMatrix(pred_trees, factor(testing$classe))
+cmtrees
+
+
+```
+
+
+
+The results of the decision tree model show accuracy = 0.6477 and Out of Sample error is 0.3523.
+
+Random Forest Model
+
+```{r randomforest, echo=TRUE}
+set.seed(54321)
+control <- trainControl(method="cv", number=3, verboseIter=F)
+
+mod_forest <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+
+# Produce confusion matrix for random forest model
+pred_forest <- predict(mod_forest, testing)
+cmforest <- confusionMatrix(pred_forest, factor(testing$classe))
+cmforest
+
+
+```
+
+Accuracy is much better with the random forest model. Accuracy is 0.9932 and an out of sample error of 0,0068.
+
+Support Vector Machine Model
+
+```{r svm, echo=TRUE}
+set.seed(54321)
+control <- trainControl(method="cv", number=3, verboseIter=F)
+
+mod_svm <- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+
+
+# Produce confusion matrix for SVM model
+pred_svm <- predict(mod_svm, testing)
+cmsvm <- confusionMatrix(pred_svm, factor(testing$classe))
+cmsvm
+
+
+```
+
+The SVM model has an accuracy of 0.7791 and an out of sample error of 0.2209
+
+The SVM model performs better than the Decision Tree model, but not as good as the Random Forest model. I'll use the Random Forest model to predict the 20 cases in the validation set.
+
+
+
+```{r validation, echo=TRUE}
+#set.seed(54321)
+#control <- trainControl(method="cv", number=3, verboseIter=F)
+
+#mod_forest <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+
+# Produce confusion matrix for random forest model
+pred_val <- predict(mod_forest, validation)
+pred_val
+
+
+```
+
+
+
